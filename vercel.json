@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "reverse.besmartai.co"
+        }
+      ],
+      "destination": "https://games.besmartai.co/games/reverse-singing/",
+      "permanent": false
+    }
+  ]
+}
