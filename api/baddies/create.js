@@ -1,4 +1,3 @@
-import { kv } from '@vercel/kv';
 import {
   newGameCode, newPlayerId, newToken, getGame, saveGame, gameKey, addChat
 } from './_lib.js';
