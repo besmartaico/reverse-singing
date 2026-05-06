@@ -1394,6 +1394,35 @@ function renderHeader() {
 // =====================================================================
 
 function renderWelcome() {
+  // Detect QR-code/invite-link mode: if ?code=XXXX is in URL, show streamlined join-only flow
+  const urlParams = new URLSearchParams(location.search);
+  const inviteCode = urlParams.get('code');
+  if (inviteCode && /^[A-Z]{6}$/i.test(inviteCode)) {
+    const code = inviteCode.toUpperCase();
+    return `
+      <div class="brand">
+        <div class="pre">// THE AGENCY // INCOMING TRANSMISSION</div>
+        <h1>THE <span>BADDIES</span></h1>
+        <div class="sub">YOU'VE BEEN INVITED</div>
+      </div>
+      <div class="panel hot">
+        <div class="panel-title">Join Operation</div>
+        <div class="kv"><span class="k">Game Code</span><span class="v" style="color:var(--green); letter-spacing:0.3em; font-size:18px;">${code}</span></div>
+        <label for="name-input" style="margin-top:14px;">Your Codename</label>
+        <input type="text" id="name-input" placeholder="Enter your codename..." maxlength="20" autocomplete="off" autofocus>
+        <div class="btn-row">
+          <button class="primary" onclick="joinFromInvite('${code}')">JOIN OPERATION</button>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-title">Briefing</div>
+        <p style="font-size:12px; color:var(--text-dim); line-height:1.6;">
+          The Agency is compromised. Hidden among the loyal operatives are <span class="red">moles</span> working for a rival faction.
+          Each round, a Handler nominates an Operative to execute a mission. Vote to approve or reject. Enact <span class="green">5 Clean</span> missions to win — but if <span class="red">6 Compromised</span> deploy, the moles take control.
+        </p>
+      </div>
+    `;
+  }
   return `
     <div class="brand">
       <div class="pre">// THE AGENCY // CLEARANCE LEVEL: REDACTED</div>
@@ -1449,6 +1478,18 @@ async function joinGame() {
   const code = document.getElementById('code-input').value.trim().toUpperCase();
   if (!name) { toast('Enter a codename first', 'error'); return; }
   if (!code || code.length !== 6) { toast('Enter the 6-letter game code', 'error'); return; }
+  try {
+    const data = await api('join', { code, name });
+    saveSession({ code: data.code, playerId: data.playerId, token: data.token });
+    startPolling();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function joinFromInvite(code) {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) { toast('Enter a codename first', 'error'); return; }
   try {
     const data = await api('join', { code, name });
     saveSession({ code: data.code, playerId: data.playerId, token: data.token });
@@ -2490,18 +2531,7 @@ function formatTs(ts) {
     state.session = saved;
     startPolling();
   }
-  // Auto-fill code from URL ?code=XXXX
-  const urlParams = new URLSearchParams(location.search);
-  const codeParam = urlParams.get('code');
-  if (codeParam && !saved) {
-    setTimeout(() => {
-      const codeInput = document.getElementById('code-input');
-      if (codeInput) {
-        codeInput.value = codeParam.toUpperCase();
-        document.getElementById('join-form')?.classList.remove('hidden');
-      }
-    }, 100);
-  }
+  // Note: ?code=XXXX URL parameter is handled in renderWelcome() — shows streamlined join screen
   render();
 })();
 </script>
