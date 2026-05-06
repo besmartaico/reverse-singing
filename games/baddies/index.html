@@ -1221,6 +1221,7 @@ const state = {
   selectedTarget: null,  // for nominate / power UIs
   selectedCard: null,    // for handler/operative play
   pollTimer: null,
+  lastRenderSig: null,
   unreadChat: 0,
   chatOpen: false,
   rolesShown: false,     // have we shown the role reveal screen?
@@ -1339,8 +1340,43 @@ function onStateUpdate() {
 // RENDERING
 // =====================================================================
 
+function renderSignature() {
+  // Captures everything that affects what's drawn. If unchanged, skip the rebuild.
+  if (!state.session) return 'welcome:' + (new URLSearchParams(location.search).get('code') || '');
+  const g = state.game;
+  if (!g) return 'connecting';
+  const phase = g.state ? g.state.phase : '-';
+  const handlerIdx = g.state ? g.state.handlerIdx : -1;
+  const opIdx = g.state ? g.state.operativeIdx : -1;
+  const playersSig = g.players.map(p => p.id + ':' + p.name + ':' + (p.alive ? '1' : '0') + ':' + (p.connected ? '1' : '0')).join('|');
+  const votesSig = g.votes ? Object.entries(g.votes).map(([k,v]) => k + '=' + v).join(',') : '';
+  const draw = g.currentDraw ? g.currentDraw.length : 0;
+  const handCards = g.you && g.you.hand ? g.you.hand.length : 0;
+  const power = g.state && g.state.pendingPower ? g.state.pendingPower.kind + ':' + (g.state.pendingPower.targetId || '') : '';
+  const peek = g.state && g.state.peekResult ? '1' : '0';
+  return [
+    g.status, phase, g.code, handlerIdx, opIdx, playersSig, votesSig,
+    g.state ? g.state.missionTrack.clean + '/' + g.state.missionTrack.compromised : '',
+    g.state ? g.state.rejectionCount : '',
+    draw, handCards, power, peek,
+    state.rolesShown ? '1' : '0',
+    state.selectedCard || '', state.selectedTarget || ''
+  ].join('#');
+}
+
 function render() {
   const root = document.getElementById('screen-root');
+  // Skip wholesale rebuild if nothing visible changed (prevents flicker during polling)
+  const sig = renderSignature();
+  if (sig === state.lastRenderSig) {
+    renderChat();
+    if (state.session && state.game && state.game.status === 'lobby' && !document.querySelector('#qr-code svg')) {
+      renderQrCode();
+    }
+    return;
+  }
+  state.lastRenderSig = sig;
+
   if (!state.session) {
     root.innerHTML = renderWelcome();
     document.getElementById('chat-toggle').classList.add('hidden');
@@ -1568,6 +1604,8 @@ function renderLobby() {
 function renderQrCode() {
   const el = document.getElementById('qr-code');
   if (!el || !state.game || !state.game.code) return;
+  // Don't regenerate if already rendered for this code
+  if (el.dataset.code === state.game.code && el.querySelector('svg')) return;
   if (typeof qrcode === 'undefined') {
     el.innerHTML = '<div style="color:#000; font-size:11px; padding:8px; font-family:monospace;">QR loading...</div>';
     setTimeout(renderQrCode, 300);
@@ -1579,6 +1617,7 @@ function renderQrCode() {
     qr.addData(url);
     qr.make();
     el.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0, scalable: true });
+    el.dataset.code = state.game.code;
     const svg = el.querySelector('svg');
     if (svg) {
       svg.style.width = '180px';
