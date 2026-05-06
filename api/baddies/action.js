@@ -19,19 +19,19 @@ export default async function handler(req, res) {
     if (!game) return res.status(404).json({ error: 'Game not found' });
 
     const player = game.players.find(p => p.id === playerId && p.token === token);
-    // Special case: bot actions submitted by host on behalf of bot
+    if (!player) return res.status(403).json({ error: 'Invalid identity' });
+
+    // Bot proxy: if caller is host AND payload includes onBehalfOf, the action is performed by the bot.
+    // We still require the host's valid token (already verified above) — the host is the only one allowed
+    // to submit bot actions because the bot driver runs in the host's browser.
     let actingId = playerId;
     let actingPlayer = player;
-    if (!actingPlayer && payload && payload.onBehalfOf) {
-      // Host driving a bot: verify caller IS the host
-      const host = game.players.find(p => p.id === playerId && p.token === token && p.id === game.host);
-      if (!host) return res.status(403).json({ error: 'Invalid identity' });
+    if (payload && payload.onBehalfOf && player.id === game.host) {
       const bot = game.players.find(p => p.id === payload.onBehalfOf && p.isBot);
       if (!bot) return res.status(400).json({ error: 'Bad bot id' });
       actingId = bot.id;
       actingPlayer = bot;
     }
-    if (!actingPlayer) return res.status(403).json({ error: 'Invalid identity' });
 
     const isHost = playerId === game.host;
     const p = payload || {};
